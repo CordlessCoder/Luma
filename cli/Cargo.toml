@@ -1,0 +1,10 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+diagnostics = { version = "0.1.0", path = "../diagnostics" }
+lexer = { version = "0.1.0", path = "../lexer" }
+parser = { version = "0.1.0", path = "../parser" }
+source = { version = "0.1.0", path = "../source" }

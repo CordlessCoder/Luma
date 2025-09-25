@@ -1,0 +1,11 @@
+@module "main"
+@use "math" as math
+
+pub const main = fn () int {
+    output("Addition: ", math.add(5, 3), "\n");
+    output("Subtraction: ", math.subtract(5, 3), "\n");
+    output("Multiplication: ", math.multiply(5, 3), "\n");
+    output("Division: ", math.divide(5, 0), "\n");
+    return 0;
+}
+

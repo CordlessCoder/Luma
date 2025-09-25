@@ -1,0 +1,12 @@
+[package]
+name = "lexer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+logos = "0.15.1"
+memchr = "2.7.5"
+utils = { version = "0.1.0", path = "../utils" }
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"

@@ -1,0 +1,11 @@
+[package]
+name = "parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ast = { version = "0.1.0", path = "../ast" }
+diagnostics = { version = "0.1.0", path = "../diagnostics" }
+lexer = { version = "0.1.0", path = "../lexer" }
+source = { version = "0.1.0", path = "../source" }
+utils = { version = "0.1.0", path = "../utils" }
