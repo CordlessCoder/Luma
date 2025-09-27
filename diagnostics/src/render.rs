@@ -45,13 +45,13 @@ impl RenderContext {
         // Clamp end to start to ensure start <= end
         let line_range = line_range.start..line_range.end.max(line_range.start);
         if line_range.is_empty() {
-            write_header(writer, Some(line.abs_line as u32 + 1))?;
+            write_header(writer, Some(line.line as u32 + 1))?;
             return write!(writer, "{text}");
         };
         let before = &line.text[..line_range.start];
         let highlighted = &line.text[line_range.clone()];
         let after = &line.text[line_range.end..];
-        write_header(writer, Some(line.abs_line as u32 + 1))?;
+        write_header(writer, Some(line.line as u32 + 1))?;
         writeln!(writer, "{before}{}{after}", highlighted)?;
         write_header(writer, None)?;
         write!(writer, "{:width$}", "", width = before.chars().count())?;
@@ -127,7 +127,7 @@ impl RenderableError for ErrorWithSource {
             source
                 .lines()
                 .skip(start.line_0idx().saturating_sub(ctx.lines_of_context))
-                .take_while(|t| t.abs_line <= end.line_0idx() + ctx.lines_of_context)
+                .take_while(|t| t.line <= end.line_0idx() + ctx.lines_of_context)
         };
         writeln!(writer, "{}", message.bold())?;
         write!(

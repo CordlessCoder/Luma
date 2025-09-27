@@ -16,6 +16,10 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             source,
         }
     }
+    fn end_span(&self) -> Span {
+        let len = self.source.text().len();
+        len..len
+    }
     fn add_lexer_error(&mut self, err: ErrorComponent) {
         self.lexer_errors.add_error(err);
     }
@@ -71,12 +75,25 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         }
         self.peeked.get(idx)
     }
-    pub(crate) fn peek_one(&mut self) -> Option<&SToken<'s>> {
+    #[inline]
+    pub(crate) fn peek_next(&mut self) -> Option<&SToken<'s>> {
         self.peek(0)
+    }
+    #[inline]
+    pub(crate) fn peek_next_span(&mut self) -> Option<Span> {
+        self.peek_next().map(|s| s.as_span())
+    }
+    #[inline]
+    pub(crate) fn peek_next_split(&mut self) -> (Option<&Token<'s>>, Span) {
+        let end_span = self.end_span();
+        let next = self.peek_next();
+        let span = next.map(|t| t.as_span()).unwrap_or(end_span);
+        let next = next.map(|n| &n.inner);
+        (next, span)
     }
     #[inline(always)]
     fn check(&mut self, predicate: impl FnOnce(&Token) -> bool) -> bool {
-        self.peek_one().is_some_and(|t| predicate(&t.inner))
+        self.peek_next().is_some_and(|t| predicate(&t.inner))
     }
     pub(crate) fn advance_if(
         &mut self,

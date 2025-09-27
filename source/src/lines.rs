@@ -13,11 +13,11 @@ pub struct LineIterator<'s> {
 pub struct TextLine<'s> {
     pub text: &'s str,
     pub span: Span,
-    pub abs_line: usize,
+    pub line: usize,
 }
 
 impl<'s> LineIterator<'s> {
-    pub fn get_abs_line(&self, line: usize) -> Option<TextLine<'s>> {
+    pub fn get_line(&self, line: usize) -> Option<TextLine<'s>> {
         let start = *self.line_starts.get(line)?;
         let end = self
             .line_starts
@@ -26,11 +26,7 @@ impl<'s> LineIterator<'s> {
             .unwrap_or(self.text.len());
         let span = start..end;
         let text = &self.text[span.clone()];
-        Some(TextLine {
-            text,
-            span,
-            abs_line: line,
-        })
+        Some(TextLine { text, span, line })
     }
 }
 
@@ -47,7 +43,7 @@ impl<'s> Iterator for LineIterator<'s> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let line = self.remaining.next()?;
-        self.get_abs_line(line)
+        self.get_line(line)
     }
 
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
@@ -63,7 +59,7 @@ impl<'s> Iterator for LineIterator<'s> {
 impl<'s> DoubleEndedIterator for LineIterator<'s> {
     fn next_back(&mut self) -> Option<Self::Item> {
         let line = self.remaining.next_back()?;
-        self.get_abs_line(line)
+        self.get_line(line)
     }
     fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
         if n >= self.len() {
