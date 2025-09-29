@@ -21,7 +21,7 @@ pub struct Parser<'s, Tokens: Iterator> {
 // If a parsing function returns None, an error occurred and we must synchronize to try to
 // continue parsing
 impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s, Tokens> {
-    pub fn parse_module_header(&mut self) -> Option<&'s str> {
+    pub(crate) fn parse_module_header(&mut self) -> Option<&'s str> {
         if !self.consume_if(|t| matches!(t, Token::At("module"))) {
             let (next, span) = self.peek_next_split();
             let msg = format!("Expected @module declaration, found {next:?}");
@@ -39,7 +39,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         };
         Some(name)
     }
-    pub fn parse_use(&mut self) -> Option<Stmt<'s>> {
+    pub(crate) fn parse_use(&mut self) -> Option<Stmt<'s>> {
         self.expect(&Token::At("use"))?;
         let (t, span) = self.advance_if_split(|t| matches!(t, Token::Ident(_)));
         let Some(Token::Ident(module)) = t else {
@@ -63,7 +63,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         }
         Some(Stmt::Use { module, alias })
     }
-    pub fn parse_return(&mut self) -> Option<Stmt<'s>> {
+    pub(crate) fn parse_return(&mut self) -> Option<Stmt<'s>> {
         self.expect(&Token::Return)?;
 
         let val = if !self.consume_if(|t| matches!(t, Token::Semicolon)) {
@@ -75,7 +75,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         };
         Some(Stmt::Return(val))
     }
-    pub fn parse_stmt(&mut self) -> Option<Stmt<'s>> {
+    pub(crate) fn parse_stmt(&mut self) -> Option<Stmt<'s>> {
         use Token::*;
         let tok = self.peek_next()?;
         match tok.inner {

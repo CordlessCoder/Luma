@@ -15,13 +15,13 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         self.expect(&Token::RParen)?;
         Some(ast::Expr::Group(Box::new(expr)))
     }
-    fn delimited_list_with_terminator<T, P: FnMut(&mut Self) -> Option<T>>(
-        &mut self,
+    fn delimited_list_with_terminator<'p, T, P: FnMut(&'_ mut Self) -> Option<T>>(
+        &'p mut self,
         mut parser: P,
-        delimiter: &Token<'_>,
-        terminator: &Token<'s>,
-    ) -> impl FusedIterator<Item = T> {
-        let iter = core::iter::from_fn(move || {
+        delimiter: &'p Token<'p>,
+        terminator: &'p Token<'s>,
+    ) -> impl FusedIterator<Item = T> + use<'p, 's, T, P, Tokens> {
+        core::iter::from_fn(move || {
             if self.consume_if(|t| t == terminator) {
                 return None;
             }
@@ -31,16 +31,8 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
                 return None;
             }
             Some(expr)
-        });
-        iter.fuse()
-        // while self.peek_next_split().0.is_some_and(|t| t != terminator) {
-        //     let expr = self.parse_expr(BindingPower::Lowest)?;
-        //     elements.push(expr);
-        //     if !self.consume_if(|t| matches!(t, Token::Comma)) {
-        //         break;
-        //     }
-        // }
-        // self.expect(&Token::RBracket)?;
+        })
+        .fuse()
     }
     /// Should only be called after a leading [ has been consumed
     fn parse_array(&mut self) -> Option<Expr<'s>> {
@@ -77,6 +69,30 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             Token::Ampersand => Expr::Intrinsic(Box::new(Intrinsic::Addr {
                 of: self.parse_expr(BindingPower::None)?,
             })),
+            Token::Alloc => {
+                self.peek_next_span().unwrap_or_else(|| self.end_span());
+                self.expect(&Token::LParen)?;
+                let size = {
+                    let start = self
+                        .peek_next_span()
+                        .unwrap_or_else(|| self.end_span())
+                        .start;
+                    let mut args = self.delimited_list_with_terminator(
+                        |p| p.parse_expr(BindingPower::None),
+                        &Token::Comma,
+                        &Token::RParen,
+                    );
+                    let [Some(size), None] = core::array::from_fn(|_| args.next()) else {
+                        core::mem::drop(args);
+                        let end = self.peek_next_span().unwrap_or_else(|| self.end_span()).end;
+                        self.new_parse_error(start..end, "Invalid number of arguments to Alloc")
+                            .set_long_message("Alloc expects a single argument.");
+                        return None;
+                    };
+                    size
+                };
+                Expr::Intrinsic(Box::new(Intrinsic::Alloc { size }))
+            }
             Token::IntLit(i) => Expr::Lit(LiteralExpression::Int(i)),
             Token::FloatLit(i) => Expr::Lit(LiteralExpression::Float(i)),
             Token::CharLiteral(c) => Expr::Lit(LiteralExpression::Char(c)),

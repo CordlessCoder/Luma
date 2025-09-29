@@ -15,11 +15,11 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             source,
         }
     }
-    fn end_span(&self) -> Span {
+    pub(crate) fn end_span(&self) -> Span {
         let len = self.source.text().len();
         len..len
     }
-    fn add_lexer_error(&mut self, err: ErrorComponent) {
+    pub(crate) fn add_lexer_error(&mut self, err: ErrorComponent) {
         self.lexer_errors.add_error(err);
     }
     pub(crate) fn new_parse_error(
