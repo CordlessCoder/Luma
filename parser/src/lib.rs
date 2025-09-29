@@ -1,4 +1,4 @@
-use ast::{Expr, Module, Stmt};
+use ast::{Module, Stmt};
 use diagnostics::{AggregateError, ErrorComponent};
 use lexer::{SToken, Token};
 use source::SourceFile;
@@ -62,9 +62,6 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             alias = Some(val);
         }
         Some(Stmt::Use { module, alias })
-    }
-    pub fn parse_expr(&mut self, bp: BindingPower) -> Option<Expr<'s>> {
-        None
     }
     pub fn parse_return(&mut self) -> Option<Stmt<'s>> {
         self.expect(&Token::Return)?;

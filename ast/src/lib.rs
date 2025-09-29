@@ -249,7 +249,7 @@ pub enum Expr<'s> {
     Assignment(Box<Assignment<'s>>),
     MemberAccess(Box<MemberAccess<'s>>),
     NamespaceAccess(NamespaceAccess<'s>),
-    Group(Vec<Expr<'s>>),
+    Group(Box<Expr<'s>>),
     Array(Vec<Expr<'s>>),
     Intrinsic(Box<Intrinsic<'s>>),
 }

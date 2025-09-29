@@ -1,3 +1,26 @@
+use ast::Expr;
+use diagnostics::ErrorComponent;
+use lexer::Token;
+
+use crate::Parser;
+
+use super::SToken;
+
+impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s, Tokens> {
+    pub fn parse_group(&mut self) -> Option<Expr<'s>> {
+        self.expect(&Token::LParen)?;
+        let expr = self.parse_expr(BindingPower::Lowest)?;
+        self.expect(&Token::RParen)?;
+        Some(ast::Expr::Group(Box::new(expr)))
+    }
+    pub fn parse_expr(&mut self, bp: BindingPower) -> Option<Expr<'s>> {
+        let (t, span) = self.peek_next_split();
+        match t? {
+            Token::LParen => self.parse_group(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BindingPower {
     /// No binding power
