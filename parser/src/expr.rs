@@ -7,15 +7,32 @@ use crate::Parser;
 use super::SToken;
 
 impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s, Tokens> {
-    // Should only be called after a leading ( has been consumed
+    /// Should only be called after a leading ( has been consumed
     pub fn parse_group(&mut self) -> Option<Expr<'s>> {
         let expr = self.parse_expr(BindingPower::Lowest)?;
         self.expect(&Token::RParen)?;
         Some(ast::Expr::Group(Box::new(expr)))
     }
+    /// Should only be called after a leading ( has been consumed
+    pub fn parse_array(&mut self) -> Option<Expr<'s>> {
+        let mut elements = Vec::new();
+        while self
+            .peek_next_split()
+            .0
+            .is_some_and(|t| !matches!(t, Token::RBracket))
+        {
+            let expr = self.parse_expr(BindingPower::Lowest)?;
+            elements.push(expr);
+            if !self.consume_if(|t| matches!(t, Token::Comma)) {
+                break;
+            }
+        }
+        self.expect(&Token::RBracket)?;
+        Some(ast::Expr::Array(elements))
+    }
     pub fn parse_unary(&mut self) -> Option<Expr<'s>> {
         let (t, span) = self.advance_if_split(|t| token_to_uop(t).is_some());
-        let op = t.as_ref().and_then(token_to_uop);
+        let op = t.as_ref().map(|t| token_to_uop(t).unwrap());
         let Some(op) = op else {
             let msg = format!("Expected a unary operator, found {t:?}");
             self.new_parse_error(span, "Unary operator error")
@@ -29,6 +46,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         let (t, span) = self.advance_split();
         Some(match t? {
             Token::LParen => self.parse_group()?,
+            Token::LBracket => self.parse_array()?,
             Token::IntLit(i) => Expr::Lit(LiteralExpression::Int(i)),
             Token::FloatLit(i) => Expr::Lit(LiteralExpression::Float(i)),
             Token::CharLiteral(c) => Expr::Lit(LiteralExpression::Char(c)),
