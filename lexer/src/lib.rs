@@ -188,7 +188,7 @@ pub enum Token<'s> {
     Or,
     #[token("&")]
     /// &
-    BitAnd,
+    Ampersand,
     #[token("^")]
     /// ^
     BitXor,
@@ -288,10 +288,10 @@ mod tests {
             [
                 // @module "main"
                 At("module"),
-                string("main"),
+                Ident("main"),
                 // @use "math" as math
                 At("use"),
-                string("math"),
+                Ident("math"),
                 As,
                 Ident("math"),
                 // pub const main = fn () int {

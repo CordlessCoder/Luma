@@ -66,7 +66,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
     pub fn parse_return(&mut self) -> Option<Stmt<'s>> {
         self.expect(&Token::Return)?;
 
-        let val = if !self.consume_if(|t| matches!(t, Token::Return)) {
+        let val = if !self.consume_if(|t| matches!(t, Token::Semicolon)) {
             let val = Some(self.parse_expr(BindingPower::Lowest)?);
             self.expect(&Token::Semicolon)?;
             val

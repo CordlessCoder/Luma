@@ -58,7 +58,7 @@ impl Display for Token<'_> {
             GtEq => "==",
             And => "&&",
             Or => "||",
-            BitAnd => "&",
+            Ampersand => "&",
             BitXor => "^",
             BitOr => "|",
             Lt => "<",

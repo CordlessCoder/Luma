@@ -50,8 +50,9 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
     pub(crate) fn put_back(&mut self, tok: SToken<'s>) {
         self.peeked.push_back(tok);
     }
-    pub(crate) fn advance_split(&mut self) -> Option<(Token<'s>, Span)> {
-        self.advance().map(SToken::split)
+    pub(crate) fn advance_split(&mut self) -> (Option<Token<'s>>, Span) {
+        let span = self.peek_next_span().unwrap_or_else(|| self.end_span());
+        (self.advance().map(|s| s.inner), span)
     }
     #[inline(always)]
     pub(crate) fn peek(&mut self, idx: usize) -> Option<&SToken<'s>> {

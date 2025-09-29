@@ -260,6 +260,7 @@ pub enum LiteralExpression<'s> {
     Int(u64),
     Float(f64),
     Char(char),
+    Bool(bool),
 }
 
 #[derive(Debug, Clone)]
