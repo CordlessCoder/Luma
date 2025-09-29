@@ -93,6 +93,15 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
                 };
                 Expr::Intrinsic(Box::new(Intrinsic::Alloc { size }))
             }
+            Token::Cast => {
+                self.expect(&Token::Lt)?;
+                let ty = self.parse_type()?;
+                self.expect(&Token::Gt)?;
+                self.expect(&Token::LParen)?;
+                let val = self.parse_expr(BindingPower::None)?;
+                self.expect(&Token::RParen)?;
+                Expr::Intrinsic(Box::new(Intrinsic::Cast { ty, val }))
+            }
             Token::IntLit(i) => Expr::Lit(LiteralExpression::Int(i)),
             Token::FloatLit(i) => Expr::Lit(LiteralExpression::Float(i)),
             Token::CharLiteral(c) => Expr::Lit(LiteralExpression::Char(c)),
