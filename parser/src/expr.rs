@@ -1,4 +1,6 @@
-use ast::{Expr, LiteralExpression, UnaryOpKind};
+use std::iter::FusedIterator;
+
+use ast::{Expr, Intrinsic, LiteralExpression, UnaryOpKind};
 use diagnostics::ErrorComponent;
 use lexer::Token;
 
@@ -8,29 +10,50 @@ use super::SToken;
 
 impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s, Tokens> {
     /// Should only be called after a leading ( has been consumed
-    pub fn parse_group(&mut self) -> Option<Expr<'s>> {
+    fn parse_group(&mut self) -> Option<Expr<'s>> {
         let expr = self.parse_expr(BindingPower::Lowest)?;
         self.expect(&Token::RParen)?;
         Some(ast::Expr::Group(Box::new(expr)))
     }
-    /// Should only be called after a leading ( has been consumed
-    pub fn parse_array(&mut self) -> Option<Expr<'s>> {
-        let mut elements = Vec::new();
-        while self
-            .peek_next_split()
-            .0
-            .is_some_and(|t| !matches!(t, Token::RBracket))
-        {
-            let expr = self.parse_expr(BindingPower::Lowest)?;
-            elements.push(expr);
-            if !self.consume_if(|t| matches!(t, Token::Comma)) {
-                break;
+    fn delimited_list_with_terminator<T, P: FnMut(&mut Self) -> Option<T>>(
+        &mut self,
+        mut parser: P,
+        delimiter: &Token<'_>,
+        terminator: &Token<'s>,
+    ) -> impl FusedIterator<Item = T> {
+        let iter = core::iter::from_fn(move || {
+            if self.consume_if(|t| t == terminator) {
+                return None;
             }
-        }
-        self.expect(&Token::RBracket)?;
+            let expr = parser(self)?;
+            if !self.consume_if(|t| t == delimiter) {
+                self.expect(terminator)?;
+                return None;
+            }
+            Some(expr)
+        });
+        iter.fuse()
+        // while self.peek_next_split().0.is_some_and(|t| t != terminator) {
+        //     let expr = self.parse_expr(BindingPower::Lowest)?;
+        //     elements.push(expr);
+        //     if !self.consume_if(|t| matches!(t, Token::Comma)) {
+        //         break;
+        //     }
+        // }
+        // self.expect(&Token::RBracket)?;
+    }
+    /// Should only be called after a leading [ has been consumed
+    fn parse_array(&mut self) -> Option<Expr<'s>> {
+        let elements = self
+            .delimited_list_with_terminator(
+                |p| p.parse_expr(BindingPower::Lowest),
+                &Token::Comma,
+                &Token::RBracket,
+            )
+            .collect();
         Some(ast::Expr::Array(elements))
     }
-    pub fn parse_unary(&mut self) -> Option<Expr<'s>> {
+    fn parse_unary(&mut self) -> Option<Expr<'s>> {
         let (t, span) = self.advance_if_split(|t| token_to_uop(t).is_some());
         let op = t.as_ref().map(|t| token_to_uop(t).unwrap());
         let Some(op) = op else {
@@ -42,11 +65,18 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         let val = self.parse_expr(BindingPower::Unary)?;
         Some(Expr::UnaryOp(Box::new(ast::UnaryOp { val, op })))
     }
+    /// Used for the left-hand side, to be later extended by [Self::left_denotation].
     pub fn null_denotation(&mut self) -> Option<Expr<'s>> {
         let (t, span) = self.advance_split();
         Some(match t? {
             Token::LParen => self.parse_group()?,
             Token::LBracket => self.parse_array()?,
+            Token::Star => Expr::Intrinsic(Box::new(Intrinsic::Deref {
+                addr: self.parse_expr(BindingPower::Unary)?,
+            })),
+            Token::Ampersand => Expr::Intrinsic(Box::new(Intrinsic::Addr {
+                of: self.parse_expr(BindingPower::None)?,
+            })),
             Token::IntLit(i) => Expr::Lit(LiteralExpression::Int(i)),
             Token::FloatLit(i) => Expr::Lit(LiteralExpression::Float(i)),
             Token::CharLiteral(c) => Expr::Lit(LiteralExpression::Char(c)),
@@ -64,6 +94,8 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             }
         })
     }
+    /// Applies operations to the given left-hand side, if they have a lower binding power than the
+    /// context.
     pub fn left_denotation(&mut self, lhs: Expr<'s>, bp: BindingPower) -> Option<Expr<'s>> {
         todo!()
     }
