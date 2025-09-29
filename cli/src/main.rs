@@ -19,12 +19,9 @@ fn main() {
                 span,
             )),
         });
-    let mut parser = parser::Parser::new(source.clone(), "test", lexer);
+    let mut parser = parser::Parser::new(source.clone(), lexer);
     let render_context = RenderContext::default();
-    match parser.parse() {
-        Ok(p) => {
-            dbg!(p);
-        }
-        Err(err) => eprint!("{}", err.display(render_context)),
-    }
+    let (module, errors) = parser.parse();
+    eprint!("{}", errors.display(render_context));
+    dbg!(module);
 }

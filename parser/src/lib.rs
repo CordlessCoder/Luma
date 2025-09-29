@@ -1,15 +1,18 @@
-use ast::{Module, Stmt};
+use ast::{Expr, Module, Stmt};
 use diagnostics::{AggregateError, ErrorComponent};
 use lexer::{SToken, Token};
 use source::SourceFile;
-use std::{borrow::Cow, collections::VecDeque};
+use std::collections::VecDeque;
 use utils::Spanned;
+
+use crate::expr::BindingPower;
+
 mod basic_ops;
+mod expr;
 
 pub struct Parser<'s, Tokens: Iterator> {
     tokens: Tokens,
     source: SourceFile,
-    filename: &'s str,
     peeked: VecDeque<SToken<'s>>,
     lexer_errors: AggregateError,
     errors: AggregateError,
@@ -60,11 +63,27 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         }
         Some(Stmt::Use { module, alias })
     }
+    pub fn parse_expr(&mut self, bp: BindingPower) -> Option<Expr<'s>> {
+        None
+    }
+    pub fn parse_return(&mut self) -> Option<Stmt<'s>> {
+        self.expect(&Token::Return)?;
+
+        let val = if !self.consume_if(|t| matches!(t, Token::Return)) {
+            let val = Some(self.parse_expr(BindingPower::Lowest)?);
+            self.expect(&Token::Semicolon)?;
+            val
+        } else {
+            None
+        };
+        Some(Stmt::Return(val))
+    }
     pub fn parse_stmt(&mut self) -> Option<Stmt<'s>> {
         use Token::*;
         let tok = self.peek_next()?;
         match tok.inner {
             At("use") => self.parse_use(),
+            Return => self.parse_return(),
             _ => {
                 let Spanned { inner, span } = self.advance()?;
                 self.new_parse_error(span, "TODO")
@@ -76,7 +95,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             }
         }
     }
-    pub fn parse(&mut self) -> Result<Module<'s>, AggregateError> {
+    pub fn parse(&mut self) -> (Module<'s>, AggregateError) {
         let name = self.parse_module_header().unwrap_or("UNSPECIFIED");
         let mut body = Vec::new();
         while self.peek_next().is_some() {
@@ -85,15 +104,18 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             };
             body.push(stmt);
         }
-        if !self.lexer_errors.is_empty() {
-            return Err(std::mem::take(&mut self.lexer_errors));
-        }
-        if !self.errors.is_empty() {
-            return Err(std::mem::take(&mut self.errors));
-        }
-        Ok(Module {
-            body: ast::Block(body),
-            name,
-        })
+        let components: Vec<ErrorComponent> = self
+            .lexer_errors
+            .components
+            .drain(..)
+            .chain(self.errors.components.drain(..))
+            .collect();
+        (
+            Module {
+                body: ast::Block(body),
+                name,
+            },
+            AggregateError { components },
+        )
     }
 }

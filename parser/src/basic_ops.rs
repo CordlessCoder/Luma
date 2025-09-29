@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::Debug};
 
 use crate::Parser;
 use diagnostics::{AggregateError, ErrorComponent};
@@ -6,13 +6,12 @@ use lexer::{SToken, Token};
 use source::{SourceFile, Span};
 
 impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s, Tokens> {
-    pub fn new(source: SourceFile, filename: &'s str, tokens: Tokens) -> Self {
+    pub fn new(source: SourceFile, tokens: Tokens) -> Self {
         Self {
             tokens,
             peeked: VecDeque::new(),
             errors: AggregateError::new(),
             lexer_errors: AggregateError::new(),
-            filename,
             source,
         }
     }
@@ -118,5 +117,34 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             self.new_parse_error(span, msg);
         }
         tok
+    }
+}
+impl<T: Iterator> Debug for Parser<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn format_error_warning_count(components: &[ErrorComponent]) -> String {
+            let mut errors: usize = 0;
+            let mut warnings: usize = 0;
+            for component in components {
+                match component.level {
+                    diagnostics::ErrorLevel::Error => errors += 1,
+                    diagnostics::ErrorLevel::Warning => warnings += 1,
+                }
+            }
+            match (errors, warnings) {
+                (0, 0) => "Empty".to_string(),
+                (err, 0) => format!("{err} errors"),
+                (0, warn) => format!("{warn} warnings"),
+                (err, warn) => format!("{err} errors, {warn} warnings"),
+            }
+        }
+        let lexer_errors = format_error_warning_count(&self.lexer_errors.components);
+        let parser_errors = format_error_warning_count(&self.lexer_errors.components);
+        f.debug_struct("Parser")
+            .field("tokens", &"Iterator")
+            .field("source", &self.source)
+            .field("peeked", &self.peeked)
+            .field("lexer_errors", &lexer_errors)
+            .field("errors", &parser_errors)
+            .finish()
     }
 }

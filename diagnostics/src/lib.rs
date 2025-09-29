@@ -25,7 +25,7 @@ pub mod render;
 use source::{SourceFile, Span};
 #[derive(Debug, Clone, Default)]
 pub struct AggregateError {
-    components: Vec<ErrorComponent>,
+    pub components: Vec<ErrorComponent>,
 }
 
 impl AggregateError {
@@ -35,13 +35,16 @@ impl AggregateError {
     pub fn is_empty(&self) -> bool {
         self.components.is_empty()
     }
+    pub fn has_error(&self) -> bool {
+        self.components.iter().any(|c| c.level == ErrorLevel::Error)
+    }
     pub fn add_error(&mut self, component: ErrorComponent) -> &mut ErrorComponent {
         self.components.push(component);
         self.components.last_mut().unwrap()
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorLevel {
     Error,
     Warning,
@@ -49,9 +52,9 @@ pub enum ErrorLevel {
 
 #[derive(Debug, Clone)]
 pub struct ErrorComponent {
-    level: ErrorLevel,
-    short_message: String,
-    long_message: String,
+    pub level: ErrorLevel,
+    pub short_message: String,
+    pub long_message: String,
     source: SourceFile,
     highlight: Span,
     highlight_message: Option<String>,
