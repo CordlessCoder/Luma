@@ -4,6 +4,7 @@ pub use logos::{Lexer, Logos};
 use std::borrow::Cow;
 use utils::Spanned;
 
+mod display;
 mod escapes;
 mod int;
 
@@ -14,12 +15,9 @@ pub type SToken<'s> = Spanned<Token<'s>>;
 #[logos(skip "//[^\n]*")]
 pub enum Token<'s> {
     // preprocessor directives
-    #[token("@module")]
-    /// @module
-    AtModule,
-    #[token("@use")]
-    /// @use
-    AtUse,
+    #[regex(r"@[A-Za-z0-9_]")]
+    /// @... - preprocessor directive
+    At(&'s str),
 
     // keywords
     #[token("elif")]
@@ -40,18 +38,9 @@ pub enum Token<'s> {
     #[token("enum")]
     /// enum
     Enum,
-    #[token("mod")]
-    /// mod
-    Mod,
-    #[token("import")]
-    /// import
-    Import,
     #[token("pub")]
     /// pub
     Pub,
-    #[token("priv")]
-    /// priv
-    Priv,
     #[token("void")]
     /// void
     Void,
@@ -158,9 +147,6 @@ pub enum Token<'s> {
     #[token("?")]
     /// ?
     Question,
-    #[token("@")]
-    /// @
-    At,
     #[token("<<")]
     /// <<
     LShift,
