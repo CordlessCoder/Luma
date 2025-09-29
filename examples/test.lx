@@ -1,5 +1,5 @@
-@module "main"
-@use "math" as math
+@module main
+@use math as math
 
 pub const main = fn () int {
     output("Addition: ", math.add(5, 3), "\n");

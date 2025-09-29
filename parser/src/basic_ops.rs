@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::Parser;
-use diagnostics::{AggregateError, ErrorComponent, ErrorWithSource};
+use diagnostics::{AggregateError, ErrorComponent};
 use lexer::{SToken, Token};
 use source::{SourceFile, Span};
 
@@ -27,19 +27,12 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         &mut self,
         span: Span,
         message: impl ToString,
-    ) -> &mut ErrorWithSource {
-        let err = self
-            .errors
-            .add_error(ErrorComponent::WithSource(ErrorWithSource::new(
-                self.source.clone(),
-                message.to_string(),
-                span,
-            )));
-        #[expect(irrefutable_let_patterns)]
-        let ErrorComponent::WithSource(s) = err else {
-            unreachable!()
-        };
-        s
+    ) -> &mut ErrorComponent {
+        self.errors.add_error(ErrorComponent::new(
+            self.source.clone(),
+            message.to_string(),
+            span,
+        ))
     }
     #[inline(always)]
     pub(crate) fn advance(&mut self) -> Option<SToken<'s>> {
@@ -108,10 +101,22 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
     pub(crate) fn advance_if_split(
         &mut self,
         predicate: impl FnOnce(&Token) -> bool,
-    ) -> Option<(Token<'s>, Span)> {
-        self.advance_if(predicate).map(SToken::split)
+    ) -> (Option<Token<'s>>, Span) {
+        let span = self.peek_next_span().unwrap_or_else(|| self.end_span());
+        let t = self.advance_if(predicate).map(|s| s.inner);
+        (t, span)
     }
     pub(crate) fn consume_if(&mut self, predicate: impl FnOnce(&Token) -> bool) -> bool {
         self.advance_if(predicate).is_some()
+    }
+    /// Advance if the token matches, log an error otherwise.
+    pub(crate) fn expect(&mut self, expected: &Token<'s>) -> Option<SToken<'s>> {
+        let tok = self.advance_if(|t| t == expected);
+        if tok.is_none() {
+            let (found, span) = self.peek_next_split();
+            let msg = format!("Expected {expected}, found {found:?}");
+            self.new_parse_error(span, msg);
+        }
+        tok
     }
 }

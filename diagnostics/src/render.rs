@@ -1,7 +1,7 @@
-use owo_colors::OwoColorize;
+use owo_colors::{DynColors, OwoColorize};
 use source::{Span, TextLine};
 
-use crate::{AggregateError, ErrorComponent, ErrorWithSource};
+use crate::{AggregateError, ErrorComponent};
 use std::fmt::{Debug, Display, Write};
 
 #[derive(Debug, Clone, Copy)]
@@ -21,6 +21,18 @@ impl Default for RenderContext {
     }
 }
 
+fn write_header(writer: &mut dyn Write, line: Option<u32>) -> std::fmt::Result {
+    let Some(line) = line else {
+        return write!(writer, "    {sep}", sep = '|'.magenta());
+    };
+    write!(
+        writer,
+        "{line:<4}{sep}",
+        line = line.yellow(),
+        sep = '|'.magenta()
+    )
+}
+
 impl RenderContext {
     pub fn render_line(
         &self,
@@ -28,18 +40,8 @@ impl RenderContext {
         mut line: TextLine<'_>,
         // This span is relative to the line
         line_range: Span,
+        color: DynColors,
     ) -> std::fmt::Result {
-        fn write_header(writer: &mut dyn Write, line: Option<u32>) -> std::fmt::Result {
-            let Some(line) = line else {
-                return write!(writer, "    {sep}", sep = '|'.magenta());
-            };
-            write!(
-                writer,
-                "{line:<4}{sep}",
-                line = line.yellow(),
-                sep = '|'.magenta()
-            )
-        }
         line.text = line.text.strip_suffix('\n').unwrap_or(line.text);
         let text = line.text;
         // Clamp end to start to ensure start <= end
@@ -58,7 +60,7 @@ impl RenderContext {
         write!(
             writer,
             "{:^>width$}",
-            "".red().bold(),
+            "".color(color).bold(),
             width = highlighted.chars().count()
         )?;
         Ok(())
@@ -107,17 +109,10 @@ impl RenderableError for AggregateError {
 
 impl RenderableError for ErrorComponent {
     fn render(&self, writer: &mut impl Write, ctx: &RenderContext) -> std::fmt::Result {
-        match self {
-            ErrorComponent::WithSource(e) => e.render(writer, ctx)?,
-        }
-        Ok(())
-    }
-}
-
-impl RenderableError for ErrorWithSource {
-    fn render(&self, writer: &mut impl Write, ctx: &RenderContext) -> std::fmt::Result {
         let Self {
-            message,
+            short_message,
+            level,
+            long_message,
             source,
             highlight,
             highlight_message,
@@ -129,14 +124,25 @@ impl RenderableError for ErrorWithSource {
                 .skip(start.line_0idx().saturating_sub(ctx.lines_of_context))
                 .take_while(|t| t.line <= end.line_0idx() + ctx.lines_of_context)
         };
-        writeln!(writer, "{}", message.bold())?;
+        let color = match level {
+            crate::ErrorLevel::Error => owo_colors::DynColors::Ansi(owo_colors::AnsiColors::Red),
+            crate::ErrorLevel::Warning => {
+                owo_colors::DynColors::Ansi(owo_colors::AnsiColors::Yellow)
+            }
+        };
+        writeln!(
+            writer,
+            "{level:?}: {}",
+            short_message.bold(),
+            level = level.color(color)
+        )?;
         write!(
             writer,
             "   {arrow} {path}:{line}:{col}",
             arrow = "-->".blue().bold(),
             path = source.path(),
-            line = start.line().yellow(),
-            col = start.col().yellow()
+            line = start.line().blue(),
+            col = start.col().blue()
         )?;
         let mut prev_line_had_overlap = false;
         for line in lines {
@@ -156,10 +162,17 @@ impl RenderableError for ErrorWithSource {
                 write!(writer, "{}", highlight_message.red().bold())?;
             }
             writeln!(writer)?;
-            ctx.render_line(writer, line, overlap.clone())?;
+            ctx.render_line(writer, line, overlap.clone(), color)?;
             prev_line_had_overlap = !overlap.is_empty();
         }
         writeln!(writer)?;
+        if self.long_message.is_empty() {
+            return Ok(());
+        }
+        for line in long_message.lines() {
+            write_header(writer, None)?;
+            writeln!(writer, "{line}")?;
+        }
         Ok(())
     }
 }

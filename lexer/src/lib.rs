@@ -15,7 +15,7 @@ pub type SToken<'s> = Spanned<Token<'s>>;
 #[logos(skip "//[^\n]*")]
 pub enum Token<'s> {
     // preprocessor directives
-    #[regex(r"@[A-Za-z0-9_]")]
+    #[regex(r"@[A-Za-z0-9_]+", |lex| &lex.slice()[1..])]
     /// @... - preprocessor directive
     At(&'s str),
 
@@ -287,10 +287,10 @@ mod tests {
             &tokens,
             [
                 // @module "main"
-                AtModule,
+                At("module"),
                 string("main"),
                 // @use "math" as math
-                AtUse,
+                At("use"),
                 string("math"),
                 As,
                 Ident("math"),

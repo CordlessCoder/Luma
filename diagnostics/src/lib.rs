@@ -41,37 +41,43 @@ impl AggregateError {
     }
 }
 
-impl AggregateError {}
-
 #[derive(Debug, Clone)]
-pub enum ErrorComponent {
-    WithSource(ErrorWithSource),
-}
-
-impl From<ErrorWithSource> for ErrorComponent {
-    fn from(value: ErrorWithSource) -> Self {
-        ErrorComponent::WithSource(value)
-    }
+pub enum ErrorLevel {
+    Error,
+    Warning,
 }
 
 #[derive(Debug, Clone)]
-pub struct ErrorWithSource {
-    message: String,
+pub struct ErrorComponent {
+    level: ErrorLevel,
+    short_message: String,
+    long_message: String,
     source: SourceFile,
     highlight: Span,
     highlight_message: Option<String>,
 }
 
-impl ErrorWithSource {
-    pub fn new(source: SourceFile, message: String, span: Span) -> Self {
-        ErrorWithSource {
-            message,
+impl ErrorComponent {
+    pub fn new(source: SourceFile, short_message: String, span: Span) -> Self {
+        ErrorComponent {
+            short_message,
+            level: ErrorLevel::Error,
+            long_message: String::new(),
             source,
             highlight: span,
             highlight_message: None,
         }
     }
-    pub fn set_highlight_message(&mut self, message: impl ToString) {
+    pub fn set_highlight_message(&mut self, message: impl ToString) -> &mut Self {
         self.highlight_message = Some(message.to_string());
+        self
+    }
+    pub fn set_level(&mut self, level: ErrorLevel) -> &mut Self {
+        self.level = level;
+        self
+    }
+    pub fn set_long_message(&mut self, message: impl ToString) -> &mut Self {
+        self.long_message = message.to_string();
+        self
     }
 }
