@@ -52,10 +52,50 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         };
         Some(Stmt::Return(val))
     }
+    pub(crate) fn parse_var_decl(&mut self, public: bool) -> Option<Stmt<'s>> {
+        let (kind, _) = self.advance_if_split(|t| matches!(t, Token::Let | Token::Const));
+        // SAFETY: This function should only be called when the next token is var, const or public
+        let kind = kind.unwrap();
+        let mutable = kind == Token::Let;
+        let name = self.expect_ident(" after {kind} token in variable declaration")?;
+        self.expect(&Token::Colon)?;
+        let ty = self.parse_type()?;
+        if self.consume_if(|t| t == &Token::Semicolon) {
+            return Some(Stmt::VarDecl {
+                name,
+                ty,
+                init: None,
+                public,
+                mutable,
+            });
+        }
+        self.expect(&Token::Eq)?;
+        let init = self.parse_expr(BindingPower::Lowest)?;
+        self.expect(&Token::Semicolon)?;
+        Some(Stmt::VarDecl {
+            name,
+            ty,
+            init: Some(init),
+            public,
+            mutable,
+        })
+    }
     pub(crate) fn parse_stmt(&mut self) -> Option<Stmt<'s>> {
+        let public = self.consume_if(|t| matches!(t, Token::Pub));
         use Token::*;
         let tok = self.peek_next()?;
         match tok.inner {
+            Const | Let => self.parse_var_decl(public),
+            _ if public => {
+                let msg = format!(
+                    "public can only be followed by let or const, not {tok}",
+                    tok = tok.inner
+                );
+                let span = tok.as_span();
+                self.new_parse_error(span, "Invalid token after public")
+                    .set_long_message(msg);
+                None
+            }
             At("use") => self.parse_use(),
             Return => self.parse_return(),
             _ => {
