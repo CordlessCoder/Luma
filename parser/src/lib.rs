@@ -28,38 +28,15 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             self.new_parse_error(span, msg);
             return None;
         }
-        let (Some(Token::Ident(name)), _) = self.advance_if_split(|t| matches!(t, Token::Ident(_)))
-        else {
-            let (next, span) = self.peek_next_split();
-            let msg = format!(
-                "Expected an identifier module name after @module declaration, found {next:?}"
-            );
-            self.new_parse_error(span, msg);
-            return None;
-        };
+        let name = self.expect_ident(" module name after @module declaration")?;
         Some(name)
     }
     pub(crate) fn parse_use(&mut self) -> Option<Stmt<'s>> {
         self.expect(&Token::At("use"))?;
-        let (t, span) = self.advance_if_split(|t| matches!(t, Token::Ident(_)));
-        let Some(Token::Ident(module)) = t else {
-            self.new_parse_error(
-                span,
-                format!("Expected an identifier name after @use, found {t:?}"),
-            );
-            return None;
-        };
+        let module = self.expect_ident(" name after @use")?;
         let mut alias = None;
         if self.consume_if(|t| matches!(t, Token::As)) {
-            let (t, span) = self.advance_if_split(|t| matches!(t, Token::Ident(_)));
-            let Some(Token::Ident(val)) = t else {
-                self.new_parse_error(
-                    span,
-                    format!("Expected an identifier alias after @use _ as, found {t:?}"),
-                );
-                return None;
-            };
-            alias = Some(val);
+            alias = Some(self.expect_ident(" alias after @use _ as")?);
         }
         Some(Stmt::Use { module, alias })
     }

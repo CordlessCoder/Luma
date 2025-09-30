@@ -163,14 +163,14 @@ pub enum Token<'s> {
     /// ==
     EqEq,
     #[token("!=")]
-    /// ==
+    /// !=
     Ne,
     #[token("<=")]
     /// ==
-    LtEq,
+    Le,
     #[token(">=")]
     /// ==
-    GtEq,
+    Ge,
     // #[token("+=")]
     // /// +=
     // PlusEq,

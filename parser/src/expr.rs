@@ -1,6 +1,6 @@
-use std::iter::FusedIterator;
+use std::{fmt::Display, iter::FusedIterator};
 
-use ast::{Expr, Intrinsic, LiteralExpression, SizeOf, Type, UnaryOpKind};
+use ast::{BinOpKind, Expr, Intrinsic, LiteralExpression, SizeOf, Type, UnaryOpKind};
 use diagnostics::ErrorComponent;
 use lexer::Token;
 
@@ -168,10 +168,96 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             }
         })
     }
+    pub(crate) fn expect_ident(&mut self, ctx: impl Display) -> Option<&'s str> {
+        let (t, span) = self.advance_if_split(|t| matches!(t, Token::Ident(_)));
+        let Some(Token::Ident(val)) = t else {
+            self.new_parse_error(span, format!("Expected an identifier{ctx} found {t:?}"));
+            return None;
+        };
+        Some(val)
+    }
+    pub(crate) fn postfix_expr(&mut self, lhs: Expr<'s>) -> Option<Expr<'s>> {
+        let (next, _) = self.advance_split();
+        let next = next.unwrap();
+
+        Some(match next {
+            Token::Dot => {
+                let member = self.expect_ident(" after . member access")?;
+                Expr::MemberAccess(Box::new(ast::MemberAccess {
+                    object: lhs,
+                    member,
+                }))
+            }
+            Token::ColonColon => {
+                let member = self.expect_ident(" after :: namespace access")?;
+                Expr::NamespaceAccess(Box::new(ast::NamespaceAccess {
+                    object: lhs,
+                    member,
+                }))
+            }
+            t @ (Token::PlusPlus | Token::MinusMinus) => {
+                let op = if t == Token::PlusPlus {
+                    UnaryOpKind::PostInc
+                } else {
+                    UnaryOpKind::PostDec
+                };
+                Expr::UnaryOp(Box::new(ast::UnaryOp { val: lhs, op }))
+            }
+            Token::LBracket => {
+                let index = self.parse_expr(BindingPower::Lowest)?;
+                self.expect(&Token::RBracket)?;
+                Expr::Intrinsic(Box::new(Intrinsic::Index { target: lhs, index }))
+            }
+            _ => {
+                unreachable!()
+            }
+        })
+    }
     /// Applies operations to the given left-hand side, if they have a lower binding power than the
     /// context.
-    pub(crate) fn left_denotation(&mut self, lhs: Expr<'s>, bp: BindingPower) -> Option<Expr<'s>> {
-        todo!()
+    /// Should only be called when more tokens are available
+    pub(crate) fn left_denotation(&mut self, lhs: Expr<'s>) -> Option<Expr<'s>> {
+        let (next, span) = self.peek_next_split();
+        let next = next.unwrap();
+        Some(match next {
+            Token::LParen => {
+                _ = self.advance();
+                let args: Vec<Expr<'s>> = self
+                    .delimited_list_with_terminator(
+                        |p| p.parse_expr(BindingPower::Lowest),
+                        &Token::Comma,
+                        &Token::RParen,
+                    )
+                    .collect();
+                Expr::Call(ast::Call {
+                    callee: Box::new(lhs),
+                    args,
+                })
+            }
+            Token::Eq => {
+                _ = self.advance();
+                let val = self.parse_expr(BindingPower::Assign)?;
+                Expr::Assignment(Box::new(ast::Assignment { target: lhs, val }))
+            }
+            Token::Dot
+            | Token::ColonColon
+            | Token::PlusPlus
+            | Token::MinusMinus
+            | Token::LBracket => self.postfix_expr(lhs)?,
+            t if token_to_bop(t).is_some() => {
+                let op = token_to_bop(t).unwrap();
+                let bp = BindingPower::from_token(t);
+                _ = self.advance();
+                let rhs = self.parse_expr(bp)?;
+                Expr::BinOp(Box::new(ast::BinOp { lhs, rhs, op }))
+            }
+            t => {
+                let msg = format!("Unexpected token for binary operation: {t}");
+                self.new_parse_error(span, "Internal error")
+                    .set_long_message(msg);
+                return None;
+            }
+        })
     }
     pub fn parse_expr(&mut self, outer_bp: BindingPower) -> Option<Expr<'s>> {
         let mut left = self.null_denotation()?;
@@ -181,7 +267,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             if new_bp <= outer_bp {
                 break;
             }
-            left = self.left_denotation(left, new_bp)?;
+            left = self.left_denotation(left)?;
         }
         Some(left)
     }
@@ -245,7 +331,7 @@ impl BindingPower {
             BitXor => BP::BitXor,
             Ampersand => BP::BitAnd,
             EqEq | Ne => BP::Equality,
-            Lt | LtEq | Gt | GtEq => BP::Relational,
+            Lt | Le | Gt | Ge => BP::Relational,
             Plus | Minus => BP::Sum,
             Star | Slash | Percent => BP::Product,
             PlusPlus | MinusMinus => BP::Postfix,
@@ -268,6 +354,33 @@ fn token_to_uop(tok: &Token<'_>) -> Option<UnaryOpKind> {
         T::MinusMinus => U::PreDec,
         T::Star => U::Deref,
         T::Ampersand => U::Addr,
+        _ => return None,
+    })
+}
+
+fn token_to_bop(tok: &Token<'_>) -> Option<BinOpKind> {
+    use BinOpKind as B;
+    use Token as T;
+    Some(match tok {
+        T::Minus => B::Sub,
+        T::Plus => B::Add,
+        T::Star => B::Mul,
+        T::Ampersand => B::BitAnd,
+        Token::Slash => B::Div,
+        Token::Percent => B::Mod,
+        Token::EqEq => B::Eq,
+        Token::Ne => B::Ne,
+        Token::Gt => B::Gt,
+        Token::Lt => B::Lt,
+        Token::Ge => B::Ge,
+        Token::Le => B::Le,
+        Token::RShift => B::Shr,
+        Token::LShift => B::Shl,
+        Token::BitOr => B::BitOr,
+        Token::BitXor => B::BitXor,
+        Token::And => B::And,
+        Token::Or => B::Or,
+        Token::Range => B::Range,
         _ => return None,
     })
 }

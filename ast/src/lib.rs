@@ -195,7 +195,7 @@ pub struct Assignment<'s> {
 
 #[derive(Debug, Clone)]
 pub struct Call<'s> {
-    pub callee: &'s str,
+    pub callee: Box<Expr<'s>>,
     pub args: Vec<Expr<'s>>,
 }
 
@@ -207,7 +207,8 @@ pub struct MemberAccess<'s> {
 
 #[derive(Debug, Clone)]
 pub struct NamespaceAccess<'s> {
-    pub components: Vec<&'s str>,
+    pub object: Expr<'s>,
+    pub member: &'s str,
 }
 
 #[derive(Debug, Clone)]
@@ -256,7 +257,7 @@ pub enum Expr<'s> {
     Call(Call<'s>),
     Assignment(Box<Assignment<'s>>),
     MemberAccess(Box<MemberAccess<'s>>),
-    NamespaceAccess(NamespaceAccess<'s>),
+    NamespaceAccess(Box<NamespaceAccess<'s>>),
     Group(Box<Expr<'s>>),
     Array(Vec<Expr<'s>>),
     Intrinsic(Box<Intrinsic<'s>>),
