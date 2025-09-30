@@ -1,6 +1,6 @@
 use std::iter::FusedIterator;
 
-use ast::{Expr, Intrinsic, LiteralExpression, UnaryOpKind};
+use ast::{Expr, Intrinsic, LiteralExpression, SizeOf, Type, UnaryOpKind};
 use diagnostics::ErrorComponent;
 use lexer::Token;
 
@@ -34,6 +34,42 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         })
         .fuse()
     }
+    pub(crate) fn parse_type(&mut self) -> Option<Type<'s>> {
+        let (next, span) = self.advance_split();
+        let Some(next) = next else {
+            self.new_parse_error(span, "Expected a type, found EOF.");
+            return None;
+        };
+        Some(match next {
+            Token::Ident(name) => Type::Named(name),
+            Token::Void => Type::Void,
+            Token::Bool => Type::Bool,
+            Token::Char => Type::Char,
+            Token::Int => Type::Int,
+            Token::UInt => Type::UInt,
+            Token::Float => Type::Float,
+            Token::Double => Type::Double,
+            Token::Str => Type::Str,
+            Token::Star => {
+                let pointee = self.parse_type()?;
+                let pointee = Box::new(pointee);
+                Type::Pointer { pointee }
+            }
+            Token::LBrace => {
+                let ty = self.parse_type()?;
+                self.expect(&Token::Semicolon)?;
+                let size = self.parse_expr(BindingPower::Lowest)?;
+                self.expect(&Token::RBracket)?;
+                Type::Array(Box::new(ty), size)
+            }
+            t => {
+                let msg = format!("Cannot parse {t} as a type.");
+                self.new_parse_error(span, "Invalid type")
+                    .set_long_message(msg);
+                return None;
+            }
+        })
+    }
     /// Should only be called after a leading [ has been consumed
     fn parse_array(&mut self) -> Option<Expr<'s>> {
         let elements = self
@@ -58,7 +94,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         Some(Expr::UnaryOp(Box::new(ast::UnaryOp { val, op })))
     }
     /// Used for the left-hand side, to be later extended by [Self::left_denotation].
-    pub fn null_denotation(&mut self) -> Option<Expr<'s>> {
+    pub(crate) fn null_denotation(&mut self) -> Option<Expr<'s>> {
         let (t, span) = self.advance_split();
         Some(match t? {
             Token::LParen => self.parse_group()?,
@@ -102,6 +138,19 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
                 self.expect(&Token::RParen)?;
                 Expr::Intrinsic(Box::new(Intrinsic::Cast { ty, val }))
             }
+            Token::Sizeof => {
+                self.expect(&Token::Lt)?;
+                let before = self.errors.components.len();
+                let sizeof = if let Some(ty) = self.parse_type() {
+                    SizeOf::Type(ty)
+                } else {
+                    let expr = self.parse_expr(BindingPower::None)?;
+                    SizeOf::Val(expr)
+                };
+                self.errors.components.truncate(before);
+                self.expect(&Token::Gt)?;
+                Expr::Intrinsic(Box::new(Intrinsic::SizeOf(sizeof)))
+            }
             Token::IntLit(i) => Expr::Lit(LiteralExpression::Int(i)),
             Token::FloatLit(i) => Expr::Lit(LiteralExpression::Float(i)),
             Token::CharLiteral(c) => Expr::Lit(LiteralExpression::Char(c)),
@@ -121,7 +170,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
     }
     /// Applies operations to the given left-hand side, if they have a lower binding power than the
     /// context.
-    pub fn left_denotation(&mut self, lhs: Expr<'s>, bp: BindingPower) -> Option<Expr<'s>> {
+    pub(crate) fn left_denotation(&mut self, lhs: Expr<'s>, bp: BindingPower) -> Option<Expr<'s>> {
         todo!()
     }
     pub fn parse_expr(&mut self, outer_bp: BindingPower) -> Option<Expr<'s>> {

@@ -76,9 +76,17 @@ pub struct Function<'s, FieldName = ()> {
 
 #[derive(Debug, Clone)]
 pub enum Type<'s> {
+    Void,
+    Bool,
+    Char,
+    Int,
+    UInt,
+    Float,
+    Double,
+    Str,
     Named(&'s str),
     Pointer { pointee: Box<Type<'s>> },
-    Array(Box<Type<'s>>, usize),
+    Array(Box<Type<'s>>, Expr<'s>),
     Function(Box<Function<'s>>),
 }
 

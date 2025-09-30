@@ -50,6 +50,9 @@ pub enum Token<'s> {
     #[token("str")]
     /// str
     Str,
+    #[token("uint")]
+    /// uint
+    UInt,
     #[token("int")]
     /// int
     Int,

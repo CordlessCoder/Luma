@@ -22,6 +22,7 @@ impl Display for Token<'_> {
             Pub => "pub",
             Char => "Char",
             Int => "int",
+            UInt => "uint",
             Float => "float",
             Str => "str",
             Double => "double",
