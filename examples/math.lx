@@ -1,3 +1,5 @@
+@module math
+
 pub const add = fn (x: int, y: int) int {
     return x + y;
 }

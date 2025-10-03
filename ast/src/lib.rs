@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+pub mod tree;
 
 #[derive(Debug, Clone)]
 pub enum BinOpKind {
