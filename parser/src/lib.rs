@@ -80,6 +80,26 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             mutable,
         })
     }
+    pub(crate) fn parse_block(&mut self) -> Option<Stmt<'s>> {
+        self.expect(&Token::LBrace)?;
+        let mut block = Vec::new();
+        while self
+            .peek_next_split()
+            .0
+            .is_some_and(|t| matches!(t, Token::RBrace))
+        {
+            let stmt = self.parse_stmt()?;
+            block.push(stmt);
+        }
+        self.expect(&Token::RBrace)?;
+        Some(Stmt::Block(ast::Block(block)))
+    }
+    pub(crate) fn parse_if(&mut self) -> Option<Stmt<'s>> {
+        self.expect(&Token::If)?;
+        self.expect(&Token::LParen)?;
+        let cond = self.parse_expr(BindingPower::Lowest)?;
+        self.expect(&Token::RParen)?;
+    }
     pub(crate) fn parse_stmt(&mut self) -> Option<Stmt<'s>> {
         let public = self.consume_if(|t| matches!(t, Token::Pub));
         use Token::*;
@@ -98,6 +118,8 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             }
             At("use") => self.parse_use(),
             Return => self.parse_return(),
+            LBrace => self.parse_block(),
+            If => self.parse_if(),
             _ => {
                 let Spanned { inner, span } = self.advance()?;
                 self.new_parse_error(span, "TODO")
