@@ -201,7 +201,7 @@ impl TreeDisplay for Stmt<'_> {
             Continue => ctx.struct_header(writer, "Continue")?,
             Expr(e) => e.fmt_tree(ctx, writer)?,
             Return(e) => ctx.fmt_single_field(writer, "Return", &e.as_ref())?,
-            Function(f) => f.fmt_tree(ctx, writer)?,
+            Function(f) => ctx.fmt_single_field(writer, "Function", f)?,
             Use { module, alias } => {
                 ctx.struct_header(writer, "Use")?;
                 ctx.add_level();
@@ -480,6 +480,8 @@ impl TreeDisplay for Block<'_> {
 
 impl TreeDisplay for Function<'_> {
     fn fmt_tree(&self, ctx: &mut TreeCtx, writer: &mut impl Write) -> fmt::Result {
+        ctx.pop_level();
+        ctx.add_level();
         let crate::Function { body, params, ret } = self;
         ctx.struct_header(writer, "Params")?;
         ctx.add_level();
@@ -492,6 +494,7 @@ impl TreeDisplay for Function<'_> {
         }
         ctx.pop_level();
         ctx.fmt_single_field(writer, "Return", ret)?;
+        ctx.make_last();
         ctx.fmt_single_field(writer, "Body", body)?;
         Ok(())
     }
