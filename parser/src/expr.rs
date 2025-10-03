@@ -15,7 +15,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         self.expect(&Token::RParen)?;
         Some(ast::Expr::Group(Box::new(expr)))
     }
-    fn delimited_list_with_terminator<'p, T, P: FnMut(&'_ mut Self) -> Option<T>>(
+    pub(crate) fn delimited_list_with_terminator<'p, T, P: FnMut(&'_ mut Self) -> Option<T>>(
         &'p mut self,
         mut parser: P,
         delimiter: &'p Token<'p>,

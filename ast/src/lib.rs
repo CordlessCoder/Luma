@@ -69,9 +69,10 @@ pub enum UnaryOpKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Function<'s, FieldName = ()> {
-    pub params: Vec<(Type<'s>, FieldName)>,
+pub struct Function<'s> {
+    pub params: Vec<(Type<'s>, &'s str)>,
     pub ret: Type<'s>,
+    pub body: Block<'s>,
 }
 
 #[derive(Debug, Clone)]
@@ -109,19 +110,19 @@ pub struct Elif<'s> {
     pub body: Block<'s>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Block<'s>(pub Vec<Stmt<'s>>);
 
 #[derive(Debug, Clone)]
 pub struct SwitchCase<'s> {
-    pub body: Block<'s>,
-    pub values: Vec<Expr<'s>>,
+    pub body: Stmt<'s>,
+    pub cases: Vec<Expr<'s>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Stmt<'s> {
     /// A function definition with parameter names
-    Function(Function<'s, &'s str>),
+    Function(Function<'s>),
     Use {
         module: &'s str,
         alias: Option<&'s str>,
@@ -146,7 +147,7 @@ pub enum Stmt<'s> {
         name: &'s str,
     },
     Loop {
-        cond: Expr<'s>,
+        cond: Option<Expr<'s>>,
         initializers: Block<'s>,
         post_ops: Block<'s>,
         body: Block<'s>,
@@ -159,11 +160,11 @@ pub enum Stmt<'s> {
     },
     Break,
     Continue,
-    Defer(Block<'s>),
+    Defer(Box<Stmt<'s>>),
     Switch {
         value: Expr<'s>,
         cases: Vec<SwitchCase<'s>>,
-        default: Option<Block<'s>>,
+        default: Option<Box<Stmt<'s>>>,
     },
 }
 
