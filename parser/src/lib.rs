@@ -254,9 +254,9 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             let mut post_ops = Vec::new();
             while self.consume_if(|t| matches!(t, Token::Colon)) {
                 self.expect(&Token::LParen)?;
-                let op = self.parse_stmt()?;
+                let op = self.parse_expr(BindingPower::Lowest)?;
                 self.expect(&Token::RParen)?;
-                post_ops.push(op);
+                post_ops.push(Stmt::Expr(op));
             }
 
             let body = self.parse_block()?;

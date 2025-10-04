@@ -5,8 +5,8 @@ use diagnostics::{
 };
 use lexer::{Logos, SToken};
 
-use std::fmt;
 use std::io::{self, stdout};
+use std::{fmt, path::Path};
 
 struct FmtToIoWrite<W: io::Write>(pub W);
 impl<W: io::Write> fmt::Write for FmtToIoWrite<W> {
@@ -15,10 +15,11 @@ impl<W: io::Write> fmt::Write for FmtToIoWrite<W> {
     }
 }
 
-fn main() {
+fn parse_and_ast_print(path: impl AsRef<Path>) {
+    let path = path.as_ref();
     let source = source::SourceFile::new(
-        "examples/math.lx".into(),
-        String::from(include_str!("../../examples/math.lx")),
+        path.to_string_lossy().to_string(),
+        std::fs::read_to_string(path).unwrap(),
     );
     let lexer = lexer::Token::lexer(source.text())
         .spanned()
@@ -39,4 +40,10 @@ fn main() {
     let mut writer = FmtToIoWrite(writer);
     let mut ctx = TreeCtx::new();
     module.fmt_tree(&mut ctx, &mut writer).unwrap();
+}
+
+fn main() {
+    for arg in std::env::args_os().skip(1) {
+        parse_and_ast_print(arg);
+    }
 }

@@ -21,14 +21,17 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         delimiter: &'p Token<'p>,
         terminator: &'p Token<'s>,
     ) -> impl FusedIterator<Item = T> + use<'p, 's, T, P, Tokens> {
+        let mut done = false;
         core::iter::from_fn(move || {
             if self.consume_if(|t| t == terminator) {
                 return None;
             }
+            if done {
+                return None;
+            }
             let expr = parser(self)?;
             if !self.consume_if(|t| t == delimiter) {
-                self.expect(terminator)?;
-                return None;
+                done = true;
             }
             Some(expr)
         })
@@ -105,8 +108,30 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
             Token::Ampersand => Expr::Intrinsic(Box::new(Intrinsic::Addr {
                 of: self.parse_expr(BindingPower::None)?,
             })),
+            Token::Free => {
+                self.expect(&Token::LParen)?;
+                let ptr = {
+                    let start = self
+                        .peek_next_span()
+                        .unwrap_or_else(|| self.end_span())
+                        .start;
+                    let mut args = self.delimited_list_with_terminator(
+                        |p| p.parse_expr(BindingPower::Lowest),
+                        &Token::Comma,
+                        &Token::RParen,
+                    );
+                    let [Some(ptr), None] = core::array::from_fn(|_| args.next()) else {
+                        core::mem::drop(args);
+                        let end = self.peek_next_span().unwrap_or_else(|| self.end_span()).end;
+                        self.new_parse_error(start..end, "Invalid number of arguments to Free")
+                            .set_long_message("Free expects a single argument.");
+                        return None;
+                    };
+                    ptr
+                };
+                Expr::Intrinsic(Box::new(Intrinsic::Free { ptr }))
+            }
             Token::Alloc => {
-                self.peek_next_span().unwrap_or_else(|| self.end_span());
                 self.expect(&Token::LParen)?;
                 let size = {
                     let start = self
@@ -114,7 +139,7 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
                         .unwrap_or_else(|| self.end_span())
                         .start;
                     let mut args = self.delimited_list_with_terminator(
-                        |p| p.parse_expr(BindingPower::None),
+                        |p| p.parse_expr(BindingPower::Lowest),
                         &Token::Comma,
                         &Token::RParen,
                     );
@@ -169,11 +194,13 @@ impl<'s, Tokens: Iterator<Item = Result<SToken<'s>, ErrorComponent>>> Parser<'s,
         })
     }
     pub(crate) fn expect_ident(&mut self, ctx: impl Display) -> Option<&'s str> {
-        let (t, span) = self.advance_if_split(|t| matches!(t, Token::Ident(_)));
-        let Some(Token::Ident(val)) = t else {
-            self.new_parse_error(span, format!("Expected an identifier{ctx} found {t:?}"));
+        let (t, span) = self.peek_next_split();
+        let Some(&Token::Ident(val)) = t else {
+            let msg = format!("Expected an identifier{ctx} found {t:?}");
+            self.new_parse_error(span, msg);
             return None;
         };
+        _ = self.advance();
         Some(val)
     }
     pub(crate) fn postfix_expr(&mut self, lhs: Expr<'s>) -> Option<Expr<'s>> {

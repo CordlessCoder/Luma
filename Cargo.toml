@@ -1,3 +1,6 @@
 [workspace]
 members = ["ast", "cli", "diagnostics", "lexer", "parser", "source", "utils"]
 resolver = "3"
+
+[profile.dev]
+debug = "full"
