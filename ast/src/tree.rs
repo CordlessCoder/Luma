@@ -69,6 +69,16 @@ impl TreeCtx {
         }
         Ok(())
     }
+    fn fmt_single_field_flat(
+        &mut self,
+        writer: &mut impl Write,
+        name: &str,
+        val: &impl TreeDisplay,
+    ) -> fmt::Result {
+        self.struct_header(writer, name)?;
+        val.fmt_tree(self, writer)?;
+        Ok(())
+    }
     fn fmt_single_field(
         &mut self,
         writer: &mut impl Write,
@@ -175,8 +185,8 @@ impl TreeDisplay for TypeDecl<'_> {
     fn fmt_tree(&self, ctx: &mut TreeCtx, writer: &mut impl Write) -> fmt::Result {
         use TypeDecl::*;
         match self {
-            Struct { fields } => ctx.fmt_single_field(writer, "Struct", &&fields[..]),
-            Enum { members } => ctx.fmt_single_field(writer, "Enum", &&members[..]),
+            Struct { fields } => ctx.fmt_single_field_flat(writer, "Struct", &&fields[..]),
+            Enum { members } => ctx.fmt_single_field_flat(writer, "Enum", &&members[..]),
         }
     }
 }
@@ -185,7 +195,7 @@ impl TreeDisplay for SwitchCase<'_> {
     fn fmt_tree(&self, ctx: &mut TreeCtx, writer: &mut impl Write) -> fmt::Result {
         ctx.struct_header(writer, "Case")?;
         ctx.add_level();
-        ctx.fmt_single_field(writer, "Cases", &&self.cases[..])?;
+        ctx.fmt_single_field_flat(writer, "Cases", &&self.cases[..])?;
         ctx.make_last();
         ctx.fmt_single_field(writer, "Body", &self.body)?;
         ctx.pop_level();
@@ -225,7 +235,7 @@ impl TreeDisplay for Stmt<'_> {
                 ctx.add_level();
                 ctx.fmt_single_field(writer, "Cond", cond)?;
                 ctx.fmt_single_field(writer, "Then", then_body)?;
-                ctx.fmt_single_field(writer, "Elifs", &&elifs[..])?;
+                ctx.fmt_single_field_flat(writer, "Elifs", &&elifs[..])?;
                 ctx.make_last();
                 ctx.fmt_single_field(writer, "Else", &else_body.as_ref())?;
                 ctx.pop_level();
@@ -265,7 +275,7 @@ impl TreeDisplay for Stmt<'_> {
                 ctx.add_level();
                 ctx.fmt_single_field(writer, "Newline", newline)?;
                 ctx.make_last();
-                ctx.fmt_single_field(writer, "Values", &&values[..])?;
+                ctx.fmt_single_field_flat(writer, "Values", &&values[..])?;
                 ctx.pop_level();
             }
             Loop {
@@ -293,7 +303,7 @@ impl TreeDisplay for Stmt<'_> {
                 ctx.fmt_single_field(writer, "Value", value)?;
                 ctx.fmt_single_field(writer, "Default", &default.as_deref())?;
                 ctx.make_last();
-                ctx.fmt_single_field(writer, "Cases", &&cases[..])?;
+                ctx.fmt_single_field_flat(writer, "Cases", &&cases[..])?;
                 ctx.pop_level();
             }
         }
@@ -343,7 +353,7 @@ impl TreeDisplay for Call<'_> {
         ctx.add_level();
         ctx.fmt_single_field(writer, "Callee", &*self.callee)?;
         ctx.make_last();
-        ctx.fmt_single_field(writer, "Args", &&self.args[..])?;
+        ctx.fmt_single_field_flat(writer, "Args", &&self.args[..])?;
         ctx.pop_level();
         Ok(())
     }
@@ -447,7 +457,7 @@ impl TreeDisplay for Expr<'_> {
             MemberAccess(a) => a.fmt_tree(ctx, writer),
             NamespaceAccess(n) => n.fmt_tree(ctx, writer),
             Group(g) => ctx.fmt_single_field(writer, "Group", &**g),
-            Array(val) => ctx.fmt_single_field(writer, "Array", &&val[..]),
+            Array(val) => ctx.fmt_single_field_flat(writer, "Array", &&val[..]),
             Intrinsic(i) => i.fmt_tree(ctx, writer),
         }
     }
@@ -460,7 +470,7 @@ impl TreeDisplay for LiteralExpression<'_> {
         ctx.add_level();
         ctx.make_last();
         match self {
-            Str(text) => ctx.fmt_single_field(writer, "Text", &&text[..])?,
+            Str(text) => ctx.fmt_single_field(writer, "Text", &text.as_ref())?,
             Int(i) => ctx.fmt_single_field(writer, "Int", i)?,
             Float(f) => ctx.fmt_single_field(writer, "Float", f)?,
             Char(c) => ctx.fmt_single_field(writer, "Char", c)?,
@@ -550,9 +560,9 @@ impl TreeDisplay for Module<'_> {
     fn fmt_tree(&self, ctx: &mut TreeCtx, writer: &mut impl Write) -> fmt::Result {
         ctx.struct_header(writer, "Module")?;
         ctx.add_level();
-        ctx.fmt_single_field(writer, "Name", &self.name)?;
+        self.name.fmt_tree(ctx, writer)?;
         ctx.make_last();
-        ctx.fmt_single_field(writer, "Body", &self.body)?;
+        self.body.fmt_tree(ctx, writer)?;
         ctx.pop_level();
         Ok(())
     }
